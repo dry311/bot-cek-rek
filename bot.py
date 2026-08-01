@@ -33,13 +33,12 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# Masukkan Token dari @BotFather (Pastikan jangan sampai terhapus tanda kutipnya)
+# === MASUKKAN TOKEN BOT TELEGRAM DARI BOTFATHER DI SINI ===
 TELEGRAM_BOT_TOKEN = "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0"
 
 
-# --- FUNGSI API CEK REKENING TANPA KTP ---
+# --- 2. FUNGSI INTEGRASI API CEK REKENING ---
 def cek_rekening_api(bank_code: str, account_number: str):
-    # Menggunakan endpoint proxy API publik
     url = f"https://api.bikin.app/v1/bank/check?bank={bank_code.lower().strip()}&number={account_number.strip()}"
 
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -86,6 +85,7 @@ def cek_rekening_api(bank_code: str, account_number: str):
         return False, "Waktu koneksi ke server API habis (Timeout)."
     except Exception as e:
         return False, f"Gagal menghubungi API: {str(e)}"
+
 
 # --- 3. HANDLER COMMAND TELEGRAM BOT ---
 
@@ -168,13 +168,10 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- 4. MAIN EXECUTION ---
 def main():
-    if TELEGRAM_BOT_TOKEN == "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0":
-        print("ERROR: Harap isi TELEGRAM_BOT_TOKEN terlebih dahulu!")
-        return
-
-    # Jalankan server mini
+    # Jalankan server mini untuk UptimeRobot/Render
     keep_alive()
 
+    # Inisialisasi Bot Telegram
     bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Registrasi Handler Command
