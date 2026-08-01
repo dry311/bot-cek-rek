@@ -34,43 +34,34 @@ logging.basicConfig(
 )
 
 # Masukkan Token dari @BotFather (Pastikan jangan sampai terhapus tanda kutipnya)
-TELEGRAM_BOT_TOKEN = "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0"
+TELEGRAM_BOT_TOKEN = "ISI_TOKEN_BOT_TELEGRAM_KAMU"
 
 
-# --- 2. FUNGSI INTEGRASI API CEK REKENING ---
+# --- FUNGSI API CEK REKENING TANPA KTP ---
 def cek_rekening_api(bank_code: str, account_number: str):
-    url = "https://api-rekening.my.id/api/v1/check"
+    # Menggunakan endpoint proxy API publik
+    url = f"https://api.bikin.app/v1/bank/check?bank={bank_code.lower().strip()}&number={account_number.strip()}"
 
-    payload = {
-        "accountBank": bank_code.lower().strip(),
-        "accountNumber": account_number.strip(),
-    }
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Content-Type": "application/json",
-    }
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     try:
-        response = requests.post(
-            url, json=payload, headers=headers, timeout=12
-        )
+        response = requests.get(url, headers=headers, timeout=12)
 
         if response.status_code == 200:
             res_data = response.json()
 
             if (
                 res_data.get("status") is True
-                or str(res_data.get("status")) == "200"
+                or res_data.get("success") is True
             ):
                 data = res_data.get("data", {})
                 account_name = (
-                    data.get("accountName")
+                    data.get("name")
                     or data.get("account_name")
-                    or data.get("name")
+                    or data.get("accountName")
                 )
                 bank_name = (
-                    data.get("bankName")
+                    data.get("bank")
                     or data.get("bank_name")
                     or bank_code.upper()
                 )
@@ -88,14 +79,13 @@ def cek_rekening_api(bank_code: str, account_number: str):
         else:
             return (
                 False,
-                f"Server API sedang sibuk (Status Code: {response.status_code}).",
+                f"Server API merespon error (Status: {response.status_code}).",
             )
 
     except requests.exceptions.Timeout:
         return False, "Waktu koneksi ke server API habis (Timeout)."
     except Exception as e:
         return False, f"Gagal menghubungi API: {str(e)}"
-
 
 # --- 3. HANDLER COMMAND TELEGRAM BOT ---
 
