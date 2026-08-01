@@ -27,36 +27,56 @@ def keep_alive():
 
 # ------------------------------------------------
 
-# Logging untuk debugging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 
-# === MASUKKAN TOKEN BOT TELEGRAM DARI BOTFATHER DI SINI ===
-TELEGRAM_BOT_TOKEN = "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0"
+# === CONFIGURATION ===
+TELEGRAM_BOT_TOKEN = (
+    "8834110152:AAFD6orSUPXInEMrlWShPJYL-pkWTCoO1mg"  # Ganti dengan Token dari BotFather
+)
+STOREPANDA_API_KEY = (
+    "1654|rFj8t1bM82Ta0zpcfEoUpbmcsYcKQ7l8QSCJESeteb4d88fd"  # Ganti dengan API Key dari dashboard StorePanda
+)
 
 
-# --- 2. FUNGSI INTEGRASI API CEK REKENING ---
+# --- 2. FUNGSI INTEGRASI API STOREPANDA ---
 def cek_rekening_api(bank_code: str, account_number: str):
-    url = f"https://api.bikin.app/v1/bank/check?bank={bank_code.lower().strip()}&number={account_number.strip()}"
+    # Endpoint StorePanda
+    url = "https://storepanda.web.id/api/v1/cek-rekening"
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    payload = {
+        "api_key": STOREPANDA_API_KEY,
+        "bank": bank_code.lower().strip(),
+        "nomor": account_number.strip(),
+    }
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Content-Type": "application/json",
+    }
 
     try:
-        response = requests.get(url, headers=headers, timeout=12)
+        # Panggil API StorePanda via POST / GET sesuai spesifikasi mereka
+        response = requests.post(
+            url, json=payload, headers=headers, timeout=15
+        )
 
         if response.status_code == 200:
             res_data = response.json()
 
+            # Cek status respon sukses StorePanda
             if (
                 res_data.get("status") is True
-                or res_data.get("success") is True
+                or str(res_data.get("status")).lower() == "success"
+                or res_data.get("code") == 200
             ):
-                data = res_data.get("data", {})
+                data = res_data.get("data", res_data)
                 account_name = (
                     data.get("name")
                     or data.get("account_name")
+                    or data.get("nama")
                     or data.get("accountName")
                 )
                 bank_name = (
@@ -72,25 +92,25 @@ def cek_rekening_api(bank_code: str, account_number: str):
                 }
             else:
                 msg = res_data.get(
-                    "message", "Nomor rekening/e-wallet tidak ditemukan."
+                    "message",
+                    res_data.get("msg", "Nomor rekening tidak ditemukan."),
                 )
                 return False, msg
         else:
             return (
                 False,
-                f"Server API merespon error (Status: {response.status_code}).",
+                f"Server StorePanda merespon error (Status: {response.status_code}).",
             )
 
     except requests.exceptions.Timeout:
-        return False, "Waktu koneksi ke server API habis (Timeout)."
+        return False, "Waktu koneksi ke server StorePanda habis (Timeout)."
     except Exception as e:
-        return False, f"Gagal menghubungi API: {str(e)}"
+        return False, f"Gagal menghubungi API StorePanda: {str(e)}"
 
 
 # --- 3. HANDLER COMMAND TELEGRAM BOT ---
 
 
-# Perintah /start
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     thread_id = update.message.message_thread_id
     welcome_text = (
@@ -107,7 +127,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# Perintah /bank
 async def bank_list_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ):
@@ -123,7 +142,6 @@ async def bank_list_command(
     )
 
 
-# Perintah /cek <KODE_BANK> <NO_REK>
 async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     thread_id = update.message.message_thread_id
 
@@ -140,14 +158,12 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bank_code = context.args[0]
     account_number = context.args[1]
 
-    # Kirim pesan sementara
     loading_msg = await update.message.reply_text(
         f"⏳ Memeriksa <b>{bank_code.upper()}</b> nomor <code>{account_number}</code>...",
         parse_mode="HTML",
         message_thread_id=thread_id,
     )
 
-    # Panggil API
     is_success, result = cek_rekening_api(bank_code, account_number)
 
     if is_success:
@@ -162,19 +178,14 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ <b>PENGECEKAN GAGAL</b>\n\n" f"• <b>Keterangan:</b> {result}"
         )
 
-    # Edit pesan loading menjadi hasil akhir
     await loading_msg.edit_text(response_text, parse_mode="HTML")
 
 
 # --- 4. MAIN EXECUTION ---
 def main():
-    # Jalankan server mini untuk UptimeRobot/Render
     keep_alive()
-
-    # Inisialisasi Bot Telegram
     bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Registrasi Handler Command
     bot_app.add_handler(CommandHandler("start", start_command))
     bot_app.add_handler(CommandHandler("bank", bank_list_command))
     bot_app.add_handler(CommandHandler("cek", cek_command))
