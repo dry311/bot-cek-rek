@@ -12,7 +12,7 @@ app = Flask("")
 
 @app.route("/")
 def home():
-    return "Bot Cek Rekening Online!"
+    return "Bot Cek Rekening (CSRF Test) Online!"
 
 
 def run():
@@ -32,80 +32,76 @@ logging.basicConfig(
     level=logging.INFO,
 )
 
-# === CONFIGURATION ===
+# === KONFIGURASI BOT & CSRF TOKEN ===
 TELEGRAM_BOT_TOKEN = (
     "8834110152:AAFD6orSUPXInEMrlWShPJYL-pkWTCoO1mg"  # Ganti dengan Token dari BotFather
 )
-STOREPANDA_API_KEY = (
-    "1654|rFj8t1bM82Ta0zpcfEoUpbmcsYcKQ7l8QSCJESeteb4d88fd"  # Ganti dengan API Key dari dashboard StorePanda
-)
+
+# Token CSRF yang kamu dapatkan
+CSRF_TOKEN = "iUlVBuZIwXi0cnixhT3g2gA0jQC17RrQ7BL6K4oi"
+
+# Masukkan URL Endpoint API Internal dari situs tempat kamu mengambil CSRF Token
+# Contoh: "https://domain-situs.com/api/check-rekening"
+TARGET_URL = "PASTE_URL_ENDPOINT_API_DI_SINI"
+
+# Cookie session dari Inspect Element (Penting! CSRF butuh cookie session yang sama)
+COOKIE_SESSION = "PASTE_COOKIE_SESSION_DI_SINI"
 
 
-# --- 2. FUNGSI INTEGRASI API STOREPANDA ---
+# --- 2. FUNGSI CEK REKENING DENGAN CSRF TOKEN ---
 def cek_rekening_api(bank_code: str, account_number: str):
-    # Endpoint StorePanda
-    url = "https://storepanda.web.id/api/v1/cek-rekening"
-
-    payload = {
-        "api_key": STOREPANDA_API_KEY,
-        "bank": bank_code.lower().strip(),
-        "nomor": account_number.strip(),
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "X-CSRF-TOKEN": CSRF_TOKEN,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Cookie": COOKIE_SESSION,
     }
 
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json",
+    payload = {
+        "bank": bank_code.lower().strip(),
+        "account_number": account_number.strip(),
+        "_token": CSRF_TOKEN,  # Beberapa framework Web (seperti Laravel) minta token di dalam body juga
     }
 
     try:
-        # Panggil API StorePanda via POST / GET sesuai spesifikasi mereka
         response = requests.post(
-            url, json=payload, headers=headers, timeout=15
+            TARGET_URL, json=payload, headers=headers, timeout=12
         )
 
         if response.status_code == 200:
             res_data = response.json()
 
-            # Cek status respon sukses StorePanda
-            if (
-                res_data.get("status") is True
-                or str(res_data.get("status")).lower() == "success"
-                or res_data.get("code") == 200
-            ):
-                data = res_data.get("data", res_data)
-                account_name = (
-                    data.get("name")
-                    or data.get("account_name")
-                    or data.get("nama")
-                    or data.get("accountName")
-                )
-                bank_name = (
-                    data.get("bank")
-                    or data.get("bank_name")
-                    or bank_code.upper()
-                )
+            # Mengambil data dari respon JSON
+            account_name = (
+                res_data.get("name")
+                or res_data.get("account_name")
+                or res_data.get("data", {}).get("name")
+            )
 
+            if account_name:
                 return True, {
-                    "bank": bank_name,
+                    "bank": bank_code.upper(),
                     "number": account_number,
                     "name": account_name,
                 }
             else:
-                msg = res_data.get(
-                    "message",
-                    res_data.get("msg", "Nomor rekening tidak ditemukan."),
-                )
+                msg = res_data.get("message", "Nama rekening tidak ditemukan.")
                 return False, msg
-        else:
+
+        elif response.status_code in [419, 403]:
             return (
                 False,
-                f"Server StorePanda merespon error (Status: {response.status_code}).",
+                "CSRF Token / Session Cookie sudah kedaluwarsa (Expired).",
             )
+        else:
+            return False, f"Server menolak request (Status: {response.status_code})."
 
     except requests.exceptions.Timeout:
-        return False, "Waktu koneksi ke server StorePanda habis (Timeout)."
+        return False, "Waktu koneksi habis (Timeout)."
     except Exception as e:
-        return False, f"Gagal menghubungi API StorePanda: {str(e)}"
+        return False, f"Error Request: {str(e)}"
 
 
 # --- 3. HANDLER COMMAND TELEGRAM BOT ---
@@ -114,31 +110,12 @@ def cek_rekening_api(bank_code: str, account_number: str):
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     thread_id = update.message.message_thread_id
     welcome_text = (
-        "👋 <b>Selamat Datang di Bot Cek Rekening & E-Wallet!</b>\n\n"
-        "Gunakan perintah <code>/cek &lt;KODE_BANK&gt; &lt;NO_REK&gt;</code> untuk mengecek pemilik rekening.\n\n"
-        "<b>Contoh Penggunaan:</b>\n"
-        "• <code>/cek bca 1234567890</code>\n"
-        "• <code>/cek gopay 081234567890</code>\n"
-        "• <code>/cek dana 081234567890</code>\n\n"
-        "Ketik <code>/bank</code> untuk melihat daftar kode bank/e-wallet."
+        "👋 <b>Selamat Datang di Bot Cek Rekening!</b>\n\n"
+        "Gunakan perintah <code>/cek &lt;KODE_BANK&gt; &lt;NO_REK&gt;</code>\n"
+        "Contoh: <code>/cek bca 1234567890</code>"
     )
     await update.message.reply_text(
         welcome_text, parse_mode="HTML", message_thread_id=thread_id
-    )
-
-
-async def bank_list_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-):
-    thread_id = update.message.message_thread_id
-    text = (
-        "📋 <b>Daftar Kode Bank & E-Wallet yang Didukung:</b>\n\n"
-        "• <b>Bank Komersial:</b> <code>bca</code>, <code>bri</code>, <code>mandiri</code>, <code>bni</code>, <code>btn</code>\n"
-        "• <b>Bank Swasta / Syariah:</b> <code>cimb</code>, <code>permata</code>, <code>bsi</code>, <code>danamon</code>, <code>panin</code>\n"
-        "• <b>E-Wallet:</b> <code>gopay</code>, <code>dana</code>, <code>ovo</code>, <code>linkaja</code>, <code>shopeepay</code>"
-    )
-    await update.message.reply_text(
-        text, parse_mode="HTML", message_thread_id=thread_id
     )
 
 
@@ -147,9 +124,7 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(context.args) < 2:
         await update.message.reply_text(
-            "⚠️ <b>Format Perintah Salah!</b>\n\n"
-            "Gunakan format: <code>/cek &lt;KODE_BANK&gt; &lt;NO_REK&gt;</code>\n"
-            "Contoh: <code>/cek bca 1234567890</code>",
+            "⚠️ Format salah! Gunakan: <code>/cek bca 1234567890</code>",
             parse_mode="HTML",
             message_thread_id=thread_id,
         )
@@ -159,7 +134,7 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     account_number = context.args[1]
 
     loading_msg = await update.message.reply_text(
-        f"⏳ Memeriksa <b>{bank_code.upper()}</b> nomor <code>{account_number}</code>...",
+        f"⏳ Memeriksa <b>{bank_code.upper()}</b> {account_number}...",
         parse_mode="HTML",
         message_thread_id=thread_id,
     )
@@ -168,10 +143,10 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_success:
         response_text = (
-            "✅ <b>REKENING VALID / DITEMUKAN</b>\n\n"
-            f"• <b>Bank/E-Wallet:</b> {result['bank']}\n"
-            f"• <b>No. Rekening:</b> <code>{result['number']}</code>\n"
-            f"• <b>Nama Pemilik:</b> <b>{result['name']}</b>"
+            "✅ <b>REKENING DITEMUKAN</b>\n\n"
+            f"• <b>Bank:</b> {result['bank']}\n"
+            f"• <b>No. Rek:</b> <code>{result['number']}</code>\n"
+            f"• <b>Nama:</b> <b>{result['name']}</b>"
         )
     else:
         response_text = (
@@ -187,10 +162,9 @@ def main():
     bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     bot_app.add_handler(CommandHandler("start", start_command))
-    bot_app.add_handler(CommandHandler("bank", bank_list_command))
     bot_app.add_handler(CommandHandler("cek", cek_command))
 
-    print("🤖 Bot Cek Rekening Siap & Berjalan...")
+    print("🤖 Bot Siap...")
     bot_app.run_polling()
 
 
