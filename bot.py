@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 
 # Masukkan Token dari @BotFather (Pastikan jangan sampai terhapus tanda kutipnya)
-TELEGRAM_BOT_TOKEN = "ISI_TOKEN_BOT_TELEGRAM_KAMU"
+TELEGRAM_BOT_TOKEN = "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0"
 
 
 # --- FUNGSI API CEK REKENING TANPA KTP ---
@@ -168,7 +168,7 @@ async def cek_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- 4. MAIN EXECUTION ---
 def main():
-    if TELEGRAM_BOT_TOKEN == "ISI_TOKEN_BOT_TELEGRAM_KAMU":
+    if TELEGRAM_BOT_TOKEN == "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0":
         print("ERROR: Harap isi TELEGRAM_BOT_TOKEN terlebih dahulu!")
         return
 
