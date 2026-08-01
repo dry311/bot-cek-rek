@@ -37,29 +37,25 @@ logging.basicConfig(
 TELEGRAM_BOT_TOKEN = "8861657282:AAGUJ0iiZROF5LyfYEHlhYXEZIyJVvF2sy0"
 
 
-# --- 2. FUNGSI INTEGRASI API CEK REKENING ---
+# --- FUNGSI INTEGRASI API CEK REKENING (API VIKI.ID) ---
 def cek_rekening_api(bank_code: str, account_number: str):
-    url = "https://cekrek.heirro.dev/api/check"
-
-    payload = {
-        "accountBank": bank_code.lower().strip(),
-        "accountNumber": account_number.strip(),
-    }
+    # Menggunakan endpoint API viki.id
+    url = f"https://api-rekening.viki.id/check?bank={bank_code.lower().strip()}&account={account_number.strip()}"
 
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
     try:
-        response = requests.post(
-            url, data=payload, headers=headers, timeout=12
-        )
+        response = requests.get(url, headers=headers, timeout=12)
 
         if response.status_code == 200:
             res_data = response.json()
 
-            if str(res_data.get("status")) == "200":
+            # Cek jika status dari API berhasil
+            if res_data.get("status") is True or res_data.get("code") == 200:
                 data = res_data.get("data", {})
-                account_name = data.get("accountName")
-                bank_name = data.get("bankName", bank_code.upper())
+                account_name = data.get("account_name") or data.get("name")
+                bank_name = data.get("bank_name") or bank_code.upper()
+
                 return True, {
                     "bank": bank_name,
                     "number": account_number,
@@ -73,7 +69,7 @@ def cek_rekening_api(bank_code: str, account_number: str):
         else:
             return (
                 False,
-                f"Server API merespon dengan status code {response.status_code}.",
+                f"Server API merespon error (Status: {response.status_code}).",
             )
 
     except requests.exceptions.Timeout:
